@@ -321,7 +321,25 @@ dnf_quiet install -y btop duf ncdu timeshift
 
 # Security / Network
 echo "==> 🔒 Installing security/network tools..."
-dnf_quiet install -y age nmap wireshark sops
+dnf_quiet install -y age nmap wireshark
+
+# sops (binary from GitHub — not in Fedora repos)
+if command -v sops &>/dev/null; then
+  echo "==> 🔒 sops is already installed, skipping."
+else
+  echo "==> 🔒 Installing sops..."
+  case "$(uname -m)" in
+    x86_64) sops_arch="amd64" ;;
+    aarch64|arm64) sops_arch="arm64" ;;
+    *) echo "==> 🔒 Skipping sops (unsupported arch)."; sops_arch="" ;;
+  esac
+  if [ -n "$sops_arch" ]; then
+    mkdir -p "${HOME}/.local/bin"
+    sops_version=$(curl -sL https://api.github.com/repos/getsops/sops/releases/latest | jq -r '.tag_name')
+    curl -sSL "https://github.com/getsops/sops/releases/download/${sops_version}/sops-${sops_version}.linux.${sops_arch}" -o "${HOME}/.local/bin/sops"
+    chmod +x "${HOME}/.local/bin/sops"
+  fi
+fi
 
 # Terminal / Shell tools
 echo "==> 💻 Installing terminal tools..."
