@@ -13,7 +13,7 @@ for arg in "$@"; do [ "$arg" = "--debug" ] && DEBUG=1; done
 if [ "$DEBUG" = "1" ]; then exec 3>&1; else exec 3>/dev/null; fi
 
 # DNF wrapper: quiet by default, verbose with --debug
-dnf_quiet() { if [ "$DEBUG" = "1" ]; then sudo dnf "$@"; else sudo dnf "$@" >&3; fi; }
+dnf_quiet() { if [ "$DEBUG" = "1" ]; then sudo dnf "$@"; else sudo dnf "$@" >&3 2>&3; fi; }
 
 # Install a single dnf package with skip-if-present messaging
 # Usage: install_dnf_pkg <emoji> <display-name> <command-to-check> [package-name]
@@ -51,7 +51,7 @@ install_gh_binary() {
   fi
   mkdir -p "${HOME}/.local/bin"
   local tmp; tmp=$(mktemp -d)
-  curl -sSL "$url" | tar xz -C "$tmp" >&3
+  curl -sSL "$url" | tar xz -C "$tmp" >&3 2>&3
   local bin; bin=$(find "$tmp" -name "$name" -type f | head -1)
   if [ -n "$bin" ]; then
     install -c -m 0755 "$bin" "${HOME}/.local/bin/$name"
@@ -75,7 +75,7 @@ else
 fi
 if [ "$SHELL" != "$(which zsh)" ]; then
   echo "==> 🐚 Changing default shell to zsh..."
-  chsh -s "$(which zsh)"
+  chsh -s "$(which zsh)" >&3 2>&3
 fi
 
 if [ -n "$(ls "$FONT_DIR"/RobotoMono*.ttf 2>/dev/null)" ]; then
@@ -96,7 +96,7 @@ if command -v starship &>/dev/null; then
   echo "==> 🚀 Starship is already installed, skipping."
 else
   echo "==> 🚀 Installing Starship..."
-  curl -sS https://starship.rs/install.sh | sh -s -- -y >&3
+  curl -sS https://starship.rs/install.sh | sh -s -- -y >&3 2>&3
   export PATH="${HOME}/.local/bin:${PATH}"
 fi
 
@@ -132,9 +132,9 @@ if command -v tailscale &>/dev/null; then
 else
   echo "==> 🦾 Installing Tailscale..."
   sudo curl -sSL -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/fedora/tailscale.repo
-  sudo rpm --import https://pkgs.tailscale.com/stable/fedora/repo.gpg
+  sudo rpm --import https://pkgs.tailscale.com/stable/fedora/repo.gpg >&3 2>&3
   dnf_quiet install -y tailscale
-  sudo systemctl enable --now tailscaled >&3
+  sudo systemctl enable --now tailscaled >&3 2>&3
 fi
 
 # Cursor IDE
@@ -175,7 +175,7 @@ if command -v claude &>/dev/null; then
   echo "==> 🤖 Claude Code is already installed, skipping."
 else
   echo "==> 🤖 Installing Claude Code..."
-  curl -fsSL https://claude.ai/install.sh | bash >&3
+  curl -fsSL https://claude.ai/install.sh | bash >&3 2>&3
   export PATH="${HOME}/.local/bin:${PATH}"
 fi
 
@@ -184,7 +184,7 @@ if command -v code &>/dev/null; then
   echo "==> 📟 VS Code is already installed, skipping."
 else
   echo "==> 📟 Installing VS Code..."
-  sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
+  sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc >&3 2>&3
   sudo sh -c 'echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/vscode.repo'
   dnf_quiet install -y code
 fi
@@ -196,7 +196,7 @@ else
   echo "==> 🌐 Installing Google Chrome..."
   case "$(uname -m)" in
     x86_64)
-      sudo rpm --import https://dl.google.com/linux/linux_signing_key.pub
+      sudo rpm --import https://dl.google.com/linux/linux_signing_key.pub >&3 2>&3
       tmp_chrome=$(mktemp -u).rpm
       curl -sSL -o "$tmp_chrome" https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
       dnf_quiet install -y "$tmp_chrome"
@@ -285,14 +285,14 @@ if ! command -v flatpak &>/dev/null; then
   echo "==> 📦 Installing flatpak..."
   dnf_quiet install -y flatpak
 fi
-flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo >&3
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo >&3 2>&3
 
 # GNOME Extension Manager (Flatpak)
 if flatpak list --app 2>/dev/null | grep -q com.mattjakeman.ExtensionManager; then
   echo "==> 🧩 GNOME Extension Manager is already installed, skipping."
 else
   echo "==> 🧩 Installing GNOME Extension Manager..."
-  flatpak install -y flathub com.mattjakeman.ExtensionManager >&3
+  flatpak install -y flathub com.mattjakeman.ExtensionManager >&3 2>&3
 fi
 
 # Pika Backup (Flatpak)
@@ -300,7 +300,7 @@ if flatpak list --app 2>/dev/null | grep -q org.gnome.World.PikaBackup; then
   echo "==> 💾 Pika Backup is already installed, skipping."
 else
   echo "==> 💾 Installing Pika Backup..."
-  flatpak install -y flathub org.gnome.World.PikaBackup >&3
+  flatpak install -y flathub org.gnome.World.PikaBackup >&3 2>&3
 fi
 
 # Slack (Flatpak)
@@ -308,7 +308,7 @@ if flatpak list --app 2>/dev/null | grep -q com.slack.Slack; then
   echo "==> 💬 Slack is already installed, skipping."
 else
   echo "==> 💬 Installing Slack..."
-  flatpak install -y flathub com.slack.Slack >&3
+  flatpak install -y flathub com.slack.Slack >&3 2>&3
 fi
 
 # Apostrophe - Markdown editor (Flatpak)
@@ -316,7 +316,7 @@ if flatpak list --app 2>/dev/null | grep -q org.gnome.gitlab.somas.Apostrophe; t
   echo "==> 📄 Apostrophe is already installed, skipping."
 else
   echo "==> 📄 Installing Apostrophe..."
-  flatpak install -y flathub org.gnome.gitlab.somas.Apostrophe >&3
+  flatpak install -y flathub org.gnome.gitlab.somas.Apostrophe >&3 2>&3
 fi
 
 # Obsidian (Flatpak)
@@ -324,7 +324,7 @@ if flatpak list --app 2>/dev/null | grep -q md.obsidian.Obsidian; then
   echo "==> 🔮 Obsidian is already installed, skipping."
 else
   echo "==> 🔮 Installing Obsidian..."
-  flatpak install -y flathub md.obsidian.Obsidian >&3
+  flatpak install -y flathub md.obsidian.Obsidian >&3 2>&3
 fi
 
 # DevPod + Podman (CLI only; desktop app has EGL/WebKit issues on Fedora)
@@ -356,8 +356,8 @@ if command -v devpod &>/dev/null; then
     echo "==> 📦 DevPod provider 'podman' already configured, skipping."
   else
     echo "==> 📦 Configuring DevPod to use Podman..."
-    devpod provider add docker --name podman -o DOCKER_PATH=podman >&3
-    devpod provider use podman >&3
+    devpod provider add docker --name podman -o DOCKER_PATH=podman >&3 2>&3
+    devpod provider use podman >&3 2>&3
   fi
 fi
 
@@ -370,7 +370,6 @@ install_dnf_pkg "🖥️ " "timeshift" timeshift
 # Security / Network
 install_dnf_pkg "🔒" "age"       age
 install_dnf_pkg "🔒" "nmap"      nmap
-install_dnf_pkg "🔒" "wireshark" wireshark
 
 # sops (binary from GitHub — not in Fedora repos)
 if command -v sops &>/dev/null; then
@@ -416,7 +415,7 @@ if command -v mise &>/dev/null; then
   echo "==> 🔧 mise is already installed, skipping."
 else
   echo "==> 🔧 Installing mise..."
-  curl https://mise.run | sh >&3
+  curl https://mise.run | sh >&3 2>&3
 fi
 
 # Bun
@@ -424,7 +423,7 @@ if command -v bun &>/dev/null; then
   echo "==> 🍞 Bun is already installed, skipping."
 else
   echo "==> 🍞 Installing Bun..."
-  curl -fsSL https://bun.sh/install | bash >&3
+  curl -fsSL https://bun.sh/install | bash >&3 2>&3
 fi
 
 install_gh_binary "lazydocker" "jesseduffield/lazydocker" "lazydocker_.*_Linux_x86_64\\.tar\\.gz$" "lazydocker_.*_Linux_arm64\\.tar\\.gz$"
