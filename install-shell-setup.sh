@@ -13,7 +13,7 @@ for arg in "$@"; do [ "$arg" = "--debug" ] && DEBUG=1; done
 if [ "$DEBUG" = "1" ]; then exec 3>&1; else exec 3>/dev/null; fi
 
 # DNF wrapper: quiet by default, verbose with --debug
-dnf_quiet() { if [ "$DEBUG" = "1" ]; then sudo dnf "$@"; else sudo dnf -q "$@"; fi; }
+dnf_quiet() { if [ "$DEBUG" = "1" ]; then sudo dnf "$@"; else sudo dnf "$@" >&3; fi; }
 
 # Install a single dnf package with skip-if-present messaging
 # Usage: install_dnf_pkg <emoji> <display-name> <command-to-check> [package-name]
@@ -63,7 +63,7 @@ install_gh_binary() {
 
 FONT_DIR="${HOME}/.local/share/fonts"
 CONFIG_DIR="${HOME}/.config"
-NF_VERSION="v3.1.1"
+NF_VERSION=$(curl -sL https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
 ROBOTO_MONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NF_VERSION}/RobotoMono.zip"
 EXTENSIONS_GNOME_ORG="https://extensions.gnome.org"
 
@@ -142,7 +142,7 @@ if command -v cursor &>/dev/null; then
   echo "==> 📝 Cursor is already installed, skipping."
 else
   echo "==> 📝 Installing Cursor..."
-  CURSOR_VERSION="2.5"
+  CURSOR_VERSION=$(curl -sL "https://www.cursor.com/downloads" | grep -oP 'linux-x64-rpm/cursor/\K[0-9.]+' | head -1)
   case "$(uname -m)" in
     x86_64) cursor_arch="linux-x64-rpm" ;;
     aarch64|arm64) cursor_arch="linux-arm64-rpm" ;;
@@ -400,15 +400,15 @@ install_dnf_pkg "💻" "zoxide"  zoxide
 install_dnf_pkg "💻" "atuin"   atuin
 
 # Terminal tools not in Fedora repos — installed from GitHub releases
-install_gh_binary "eza"     "eza-community/eza"     "eza_x86_64-unknown-linux-musl\\.tar\\.gz$"      "eza_aarch64-unknown-linux-musl\\.tar\\.gz$"
+install_gh_binary "eza"     "eza-community/eza"     "eza_x86_64-unknown-linux-gnu\\.tar\\.gz$"       "eza_aarch64-unknown-linux-gnu\\.tar\\.gz$"
 install_gh_binary "zellij"  "zellij-org/zellij"     "zellij-x86_64-unknown-linux-musl\\.tar\\.gz$"   "zellij-aarch64-unknown-linux-musl\\.tar\\.gz$"
-install_gh_binary "lazygit" "jesseduffield/lazygit"  "lazygit_.*_Linux_x86_64\\.tar\\.gz$"            "lazygit_.*_Linux_arm64\\.tar\\.gz$"
-install_gh_binary "delta"   "dandavison/delta"       "delta-.*-x86_64-unknown-linux-musl\\.tar\\.gz$" "delta-.*-aarch64-unknown-linux-musl\\.tar\\.gz$"
+install_gh_binary "lazygit" "jesseduffield/lazygit"  "lazygit_.*_linux_x86_64\\.tar\\.gz$"            "lazygit_.*_linux_arm64\\.tar\\.gz$"
+install_gh_binary "delta"   "dandavison/delta"       "delta-.*-x86_64-unknown-linux-gnu\\.tar\\.gz$"  "delta-.*-aarch64-unknown-linux-gnu\\.tar\\.gz$"
 install_gh_binary "dust"    "bootandy/dust"          "dust-.*-x86_64-unknown-linux-musl\\.tar\\.gz$"  "dust-.*-aarch64-unknown-linux-musl\\.tar\\.gz$"
 
 # Dev tools
 install_dnf_pkg "🔧" "yq"     yq
-install_dnf_pkg "🔧" "xh"     xh
+install_gh_binary "xh" "ducaale/xh" "xh-.*-x86_64-unknown-linux-musl\\.tar\\.gz$" "xh-.*-aarch64-unknown-linux-musl\\.tar\\.gz$"
 install_dnf_pkg "🔧" "direnv" direnv
 
 # mise (runtime version manager)
