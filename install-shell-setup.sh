@@ -15,6 +15,52 @@ if [ "$DEBUG" = "1" ]; then exec 3>&1; else exec 3>/dev/null; fi
 # DNF wrapper: quiet by default, verbose with --debug
 dnf_quiet() { if [ "$DEBUG" = "1" ]; then sudo dnf "$@"; else sudo dnf -q "$@"; fi; }
 
+# Install a single dnf package with skip-if-present messaging
+# Usage: install_dnf_pkg <emoji> <display-name> <command-to-check> [package-name]
+install_dnf_pkg() {
+  local emoji="$1" label="$2" cmd="$3" pkg="${4:-$3}"
+  if command -v "$cmd" &>/dev/null; then
+    echo "==> $emoji $label is already installed, skipping."
+  else
+    echo "==> $emoji Installing $label..."
+    dnf_quiet install -y "$pkg"
+  fi
+}
+
+# Helper: install a binary from a GitHub release tar.gz
+install_gh_binary() {
+  local name="$1" repo="$2" x86_pattern="$3" arm_pattern="$4"
+  if command -v "$name" &>/dev/null; then
+    echo "==> 💾 $name is already installed, skipping."
+    return
+  fi
+  echo "==> 💾 Installing $name..."
+  local pattern
+  case "$(uname -m)" in
+    x86_64)        pattern="$x86_pattern" ;;
+    aarch64|arm64) pattern="$arm_pattern" ;;
+    *) echo "==> ⚠️  Skipping $name (unsupported arch)."; return ;;
+  esac
+  local url
+  url=$(curl -sL "https://api.github.com/repos/${repo}/releases/latest" \
+    | jq -r --arg p "$pattern" '.assets[] | select(.name | test($p)) | .browser_download_url' \
+    | head -1)
+  if [ -z "$url" ]; then
+    echo "==> ⚠️  Could not find $name release asset. Skipping."
+    return
+  fi
+  mkdir -p "${HOME}/.local/bin"
+  local tmp; tmp=$(mktemp -d)
+  curl -sSL "$url" | tar xz -C "$tmp" >&3
+  local bin; bin=$(find "$tmp" -name "$name" -type f | head -1)
+  if [ -n "$bin" ]; then
+    install -c -m 0755 "$bin" "${HOME}/.local/bin/$name"
+  else
+    echo "==> ⚠️  Binary '$name' not found in archive."
+  fi
+  rm -rf "$tmp"
+}
+
 FONT_DIR="${HOME}/.local/share/fonts"
 CONFIG_DIR="${HOME}/.config"
 NF_VERSION="v3.1.1"
@@ -316,12 +362,15 @@ if command -v devpod &>/dev/null; then
 fi
 
 # System tools
-echo "==> 🖥️  Installing system tools..."
-dnf_quiet install -y btop duf ncdu timeshift
+install_dnf_pkg "🖥️ " "btop"      btop
+install_dnf_pkg "🖥️ " "duf"       duf
+install_dnf_pkg "🖥️ " "ncdu"      ncdu
+install_dnf_pkg "🖥️ " "timeshift" timeshift
 
 # Security / Network
-echo "==> 🔒 Installing security/network tools..."
-dnf_quiet install -y age nmap wireshark
+install_dnf_pkg "🔒" "age"       age
+install_dnf_pkg "🔒" "nmap"      nmap
+install_dnf_pkg "🔒" "wireshark" wireshark
 
 # sops (binary from GitHub — not in Fedora repos)
 if command -v sops &>/dev/null; then
@@ -341,13 +390,26 @@ else
   fi
 fi
 
-# Terminal / Shell tools
-echo "==> 💻 Installing terminal tools..."
-dnf_quiet install -y tmux zellij fzf bat eza ripgrep fd-find git-delta zoxide atuin lazygit du-dust
+# Terminal / Shell tools (packages available in Fedora repos)
+install_dnf_pkg "💻" "tmux"    tmux
+install_dnf_pkg "💻" "fzf"     fzf
+install_dnf_pkg "💻" "bat"     bat
+install_dnf_pkg "💻" "ripgrep" rg    ripgrep
+install_dnf_pkg "💻" "fd"      fd    fd-find
+install_dnf_pkg "💻" "zoxide"  zoxide
+install_dnf_pkg "💻" "atuin"   atuin
+
+# Terminal tools not in Fedora repos — installed from GitHub releases
+install_gh_binary "eza"     "eza-community/eza"     "eza_x86_64-unknown-linux-musl\\.tar\\.gz$"      "eza_aarch64-unknown-linux-musl\\.tar\\.gz$"
+install_gh_binary "zellij"  "zellij-org/zellij"     "zellij-x86_64-unknown-linux-musl\\.tar\\.gz$"   "zellij-aarch64-unknown-linux-musl\\.tar\\.gz$"
+install_gh_binary "lazygit" "jesseduffield/lazygit"  "lazygit_.*_Linux_x86_64\\.tar\\.gz$"            "lazygit_.*_Linux_arm64\\.tar\\.gz$"
+install_gh_binary "delta"   "dandavison/delta"       "delta-.*-x86_64-unknown-linux-musl\\.tar\\.gz$" "delta-.*-aarch64-unknown-linux-musl\\.tar\\.gz$"
+install_gh_binary "dust"    "bootandy/dust"          "dust-.*-x86_64-unknown-linux-musl\\.tar\\.gz$"  "dust-.*-aarch64-unknown-linux-musl\\.tar\\.gz$"
 
 # Dev tools
-echo "==> 🔧 Installing dev tools (yq, xh, direnv)..."
-dnf_quiet install -y yq xh direnv
+install_dnf_pkg "🔧" "yq"     yq
+install_dnf_pkg "🔧" "xh"     xh
+install_dnf_pkg "🔧" "direnv" direnv
 
 # mise (runtime version manager)
 if command -v mise &>/dev/null; then
@@ -365,24 +427,7 @@ else
   curl -fsSL https://bun.sh/install | bash >&3
 fi
 
-# lazydocker
-if command -v lazydocker &>/dev/null; then
-  echo "==> 🐳 lazydocker is already installed, skipping."
-else
-  echo "==> 🐳 Installing lazydocker..."
-  case "$(uname -m)" in
-    x86_64) ld_arch="x86_64" ;;
-    aarch64|arm64) ld_arch="arm64" ;;
-    *) echo "==> 🐳 Skipping lazydocker (unsupported arch)."; ld_arch="" ;;
-  esac
-  if [ -n "$ld_arch" ]; then
-    mkdir -p "${HOME}/.local/bin"
-    ld_version=$(curl -sL https://api.github.com/repos/jesseduffield/lazydocker/releases/latest | jq -r '.tag_name')
-    curl -sSL "https://github.com/jesseduffield/lazydocker/releases/download/${ld_version}/lazydocker_${ld_version#v}_Linux_${ld_arch}.tar.gz" | tar xz -C /tmp lazydocker >&3
-    install -c -m 0755 /tmp/lazydocker "${HOME}/.local/bin/lazydocker"
-    rm -f /tmp/lazydocker
-  fi
-fi
+install_gh_binary "lazydocker" "jesseduffield/lazydocker" "lazydocker_.*_Linux_x86_64\\.tar\\.gz$" "lazydocker_.*_Linux_arm64\\.tar\\.gz$"
 
 # Zsh integrations
 echo "==> 🐚 Updating zshrc with tool integrations..."
