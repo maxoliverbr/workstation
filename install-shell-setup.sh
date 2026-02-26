@@ -135,12 +135,10 @@ else
   echo "==> 🌐 Installing Google Chrome..."
   case "$(uname -m)" in
     x86_64)
-      if [ ! -f /etc/yum.repos.d/google-chrome.repo ]; then
-        sudo sh -c 'echo -e "[google-chrome]\nname=google-chrome\nbaseurl=https://dl.google.com/linux/chrome/rpm/stable/x86_64\nenabled=1\ngpgcheck=1\ngpgkey=https://dl.google.com/linux/linux_signing_key.pub" > /etc/yum.repos.d/google-chrome.repo'
-        sudo rpm --import https://dl.google.com/linux/linux_signing_key.pub
-      fi
-      sudo dnf makecache --repo=google-chrome
-      sudo dnf install -y google-chrome-stable
+      tmp_chrome=$(mktemp -u).rpm
+      curl -sSL -o "$tmp_chrome" https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
+      sudo dnf install -y "$tmp_chrome"
+      rm -f "$tmp_chrome"
       ;;
     *) echo "==> 🌐 Skipping Chrome (unsupported arch)." ;;
   esac
