@@ -128,10 +128,10 @@ else
 fi
 
 # Google Chrome
+echo "==> 🌐 Chrome..."
 if command -v google-chrome-stable &>/dev/null || command -v google-chrome &>/dev/null; then
-  echo "==> 🌐 Chrome is already installed, skipping."
+  echo "    Already installed, skipping."
 else
-  echo "==> 🌐 Installing Google Chrome..."
   case "$(uname -m)" in
     x86_64)
       if [ ! -f /etc/yum.repos.d/google-chrome.repo ]; then
@@ -139,22 +139,73 @@ else
       fi
       sudo dnf install -y google-chrome-stable
       ;;
-    *) echo "==> 🌐 Skipping Chrome (unsupported arch)." ;;
+    *) echo "    Skipping (unsupported arch)." ;;
   esac
 fi
 # Pin Chrome to dash (GNOME favorites) when in a graphical session
 if (command -v google-chrome-stable &>/dev/null || command -v google-chrome &>/dev/null) && [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ] && command -v gsettings &>/dev/null; then
   favs=$(gsettings get org.gnome.shell favorite-apps 2>/dev/null)
   if echo "$favs" | grep -q 'google-chrome'; then
-    echo "==> 🌐 Chrome already in dash favorites, skipping."
+    echo "    Chrome already in dash favorites, skipping."
   else
-    echo "==> 🌐 Pinning Chrome to dash..."
+    echo "    Pinning Chrome to dash..."
     if [ "$favs" = "@as []" ] || [ "$favs" = "[]" ]; then
       gsettings set org.gnome.shell favorite-apps "['google-chrome.desktop']"
     else
       gsettings set org.gnome.shell favorite-apps "$(echo "$favs" | sed "s/\]$/, 'google-chrome.desktop']/")"
     fi
   fi
+else
+  if command -v google-chrome-stable &>/dev/null || command -v google-chrome &>/dev/null; then
+    echo "    Skipping dash pin (no graphical session)."
+  fi
+fi
+
+# WhatsApp webapp (Chrome --app window; requires Chrome)
+echo "==> 💬 WhatsApp webapp..."
+CHROME_CMD=""
+command -v google-chrome-stable &>/dev/null && CHROME_CMD="google-chrome-stable"
+command -v google-chrome &>/dev/null && CHROME_CMD="google-chrome"
+if [ -n "$CHROME_CMD" ]; then
+  WHATSAPP_DESKTOP="${HOME}/.local/share/applications/whatsapp-web.desktop"
+  if [ -f "$WHATSAPP_DESKTOP" ]; then
+    echo "    Already installed, skipping."
+  else
+    echo "    Installing WhatsApp webapp..."
+    mkdir -p "${HOME}/.local/share/applications"
+    cat > "$WHATSAPP_DESKTOP" << EOF
+[Desktop Entry]
+Name=WhatsApp
+Comment=WhatsApp Web
+Exec=$CHROME_CMD --app=https://web.whatsapp.com
+Icon=web-browser
+Type=Application
+Categories=Network;InstantMessaging;
+StartupNotify=true
+EOF
+    chmod +x "$WHATSAPP_DESKTOP"
+    if command -v update-desktop-database &>/dev/null; then
+      update-desktop-database -q "${HOME}/.local/share/applications" 2>/dev/null || true
+    fi
+  fi
+  # Pin WhatsApp to dash when in a graphical session
+  if [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ] && command -v gsettings &>/dev/null; then
+    favs=$(gsettings get org.gnome.shell favorite-apps 2>/dev/null)
+    if echo "$favs" | grep -q 'whatsapp-web'; then
+      echo "    WhatsApp already in dash favorites, skipping."
+    else
+      echo "    Pinning WhatsApp to dash..."
+      if [ "$favs" = "@as []" ] || [ "$favs" = "[]" ]; then
+        gsettings set org.gnome.shell favorite-apps "['whatsapp-web.desktop']"
+      else
+        gsettings set org.gnome.shell favorite-apps "$(echo "$favs" | sed "s/\]$/, 'whatsapp-web.desktop']/")"
+      fi
+    fi
+  else
+    echo "    Skipping dash pin (no graphical session)."
+  fi
+else
+  echo "    Skipping (Chrome not installed)."
 fi
 
 # GitHub CLI (gh)
