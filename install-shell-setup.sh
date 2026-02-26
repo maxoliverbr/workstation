@@ -346,6 +346,10 @@ install_gnome_extension() {
     echo "==> 🔌 Warning: $name extraction may have failed (no metadata.json found)."
     return
   fi
+  local schemas_dir="${HOME}/.local/share/gnome-shell/extensions/${final_uuid}/schemas"
+  if [ -d "$schemas_dir" ] && ls "$schemas_dir"/*.xml &>/dev/null; then
+    glib-compile-schemas "$schemas_dir"
+  fi
   gnome_extension_enable "$final_uuid"
 }
 
