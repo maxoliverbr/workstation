@@ -16,6 +16,10 @@ else
   echo "==> 🐚 Installing zsh..."
   sudo dnf install -y zsh
 fi
+if [ "$SHELL" != "$(which zsh)" ]; then
+  echo "==> 🐚 Changing default shell to zsh..."
+  chsh -s "$(which zsh)"
+fi
 
 if [ -n "$(ls "$FONT_DIR"/RobotoMono*.ttf 2>/dev/null)" ]; then
   echo "==> 🔤 Roboto Mono Nerd Font is already installed, skipping."
