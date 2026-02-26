@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install: zsh, Roboto Mono Nerd Font, Starship (Catppuccin), Ranger, Tailscale, Cursor, Claude Code, git (global config), GNOME Extension Manager + extensions
+# Install: zsh, Roboto Mono Nerd Font, Starship (Catppuccin), Ranger, Tailscale, Cursor, Claude Code, Chrome, Slack, git (global config), GNOME Extension Manager + extensions
 # For Fedora/RHEL (uses dnf). Run with: bash install-shell-setup.sh
 
 set -e
@@ -93,6 +93,20 @@ else
     rm -f "$tmp_rpm"
   fi
 fi
+# Pin Cursor to dash (GNOME favorites) when in a graphical session
+if command -v cursor &>/dev/null && [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ] && command -v gsettings &>/dev/null; then
+  favs=$(gsettings get org.gnome.shell favorite-apps 2>/dev/null)
+  if echo "$favs" | grep -q 'cursor'; then
+    echo "==> 📝 Cursor already in dash favorites, skipping."
+  else
+    echo "==> 📝 Pinning Cursor to dash..."
+    if [ "$favs" = "@as []" ] || [ "$favs" = "[]" ]; then
+      gsettings set org.gnome.shell favorite-apps "['cursor.desktop']"
+    else
+      gsettings set org.gnome.shell favorite-apps "$(echo "$favs" | sed "s/\]$/, 'cursor.desktop']/")"
+    fi
+  fi
+fi
 
 # Claude Code CLI
 if command -v claude &>/dev/null; then
@@ -111,6 +125,36 @@ else
   sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
   sudo sh -c 'echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/vscode.repo'
   sudo dnf install -y code
+fi
+
+# Google Chrome
+if command -v google-chrome-stable &>/dev/null || command -v google-chrome &>/dev/null; then
+  echo "==> 🌐 Chrome is already installed, skipping."
+else
+  echo "==> 🌐 Installing Google Chrome..."
+  case "$(uname -m)" in
+    x86_64)
+      if [ ! -f /etc/yum.repos.d/google-chrome.repo ]; then
+        sudo sh -c 'echo -e "[google-chrome]\nname=google-chrome\nbaseurl=https://dl.google.com/linux/chrome/rpm/stable/x86_64\nenabled=1\ngpgcheck=1\ngpgkey=https://dl.google.com/linux/linux_signing_key.pub" > /etc/yum.repos.d/google-chrome.repo'
+      fi
+      sudo dnf install -y google-chrome-stable
+      ;;
+    *) echo "==> 🌐 Skipping Chrome (unsupported arch)." ;;
+  esac
+fi
+# Pin Chrome to dash (GNOME favorites) when in a graphical session
+if (command -v google-chrome-stable &>/dev/null || command -v google-chrome &>/dev/null) && [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ] && command -v gsettings &>/dev/null; then
+  favs=$(gsettings get org.gnome.shell favorite-apps 2>/dev/null)
+  if echo "$favs" | grep -q 'google-chrome'; then
+    echo "==> 🌐 Chrome already in dash favorites, skipping."
+  else
+    echo "==> 🌐 Pinning Chrome to dash..."
+    if [ "$favs" = "@as []" ] || [ "$favs" = "[]" ]; then
+      gsettings set org.gnome.shell favorite-apps "['google-chrome.desktop']"
+    else
+      gsettings set org.gnome.shell favorite-apps "$(echo "$favs" | sed "s/\]$/, 'google-chrome.desktop']/")"
+    fi
+  fi
 fi
 
 # GitHub CLI (gh)
@@ -151,6 +195,49 @@ else
   echo "==> 💾 Installing Pika Backup..."
   command -v flatpak &>/dev/null || { sudo dnf install -y flatpak; flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; }
   flatpak install -y flathub org.gnome.World.PikaBackup
+fi
+
+# Slack (Flatpak)
+if flatpak list --app 2>/dev/null | grep -q com.slack.Slack; then
+  echo "==> 💬 Slack is already installed, skipping."
+else
+  echo "==> 💬 Installing Slack..."
+  command -v flatpak &>/dev/null || { sudo dnf install -y flatpak; flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; }
+  flatpak install -y flathub com.slack.Slack
+fi
+
+# DevPod + Podman (CLI only; desktop app has EGL/WebKit issues on Fedora)
+if command -v podman &>/dev/null; then
+  echo "==> 🐳 Podman is already installed, skipping."
+else
+  echo "==> 🐳 Installing Podman..."
+  sudo dnf install -y podman
+fi
+if command -v devpod &>/dev/null; then
+  echo "==> 📦 DevPod CLI is already installed, skipping."
+else
+  echo "==> 📦 Installing DevPod CLI..."
+  case "$(uname -m)" in
+    x86_64) devpod_arch="amd64" ;;
+    aarch64|arm64) devpod_arch="arm64" ;;
+    *) echo "==> 📦 Skipping DevPod (unsupported arch)."; devpod_arch="" ;;
+  esac
+  if [ -n "$devpod_arch" ]; then
+    mkdir -p "${HOME}/.local/bin"
+    curl -sSL -o /tmp/devpod "https://github.com/loft-sh/devpod/releases/latest/download/devpod-linux-${devpod_arch}"
+    chmod +x /tmp/devpod
+    install -c -m 0755 /tmp/devpod "${HOME}/.local/bin/devpod"
+    rm -f /tmp/devpod
+  fi
+fi
+if command -v devpod &>/dev/null; then
+  if devpod provider list 2>/dev/null | grep -q 'podman'; then
+    echo "==> 📦 DevPod provider 'podman' already configured, skipping."
+  else
+    echo "==> 📦 Configuring DevPod to use Podman..."
+    devpod provider add docker --name podman -o DOCKER_PATH=podman
+    devpod provider use podman
+  fi
 fi
 
 # GNOME extensions (Dash2Dock Animated, Tailscale Status, Blur my Shell)
