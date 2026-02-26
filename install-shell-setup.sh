@@ -138,8 +138,8 @@ else
       if [ ! -f /etc/yum.repos.d/google-chrome.repo ]; then
         sudo sh -c 'echo -e "[google-chrome]\nname=google-chrome\nbaseurl=https://dl.google.com/linux/chrome/rpm/stable/x86_64\nenabled=1\ngpgcheck=1\ngpgkey=https://dl.google.com/linux/linux_signing_key.pub" > /etc/yum.repos.d/google-chrome.repo'
         sudo rpm --import https://dl.google.com/linux/linux_signing_key.pub
-        sudo dnf makecache --repo=google-chrome
       fi
+      sudo dnf makecache --repo=google-chrome
       sudo dnf install -y google-chrome-stable
       ;;
     *) echo "==> 🌐 Skipping Chrome (unsupported arch)." ;;
