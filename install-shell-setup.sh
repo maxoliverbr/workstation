@@ -135,6 +135,7 @@ else
   echo "==> 🌐 Installing Google Chrome..."
   case "$(uname -m)" in
     x86_64)
+      sudo rpm --import https://dl.google.com/linux/linux_signing_key.pub
       tmp_chrome=$(mktemp -u).rpm
       curl -sSL -o "$tmp_chrome" https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
       sudo dnf install -y "$tmp_chrome"
@@ -218,16 +219,18 @@ git config --global init.defaultBranch main
 git config --global user.email "max.oliver@cintrax.com.br"
 git config --global user.name "Max Oliver"
 
+# Ensure flatpak + Flathub are available (required for all Flatpak installs below)
+if ! command -v flatpak &>/dev/null; then
+  echo "==> 📦 Installing flatpak..."
+  sudo dnf install -y flatpak
+fi
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
 # GNOME Extension Manager (Flatpak)
 if flatpak list --app 2>/dev/null | grep -q com.mattjakeman.ExtensionManager; then
   echo "==> 🧩 GNOME Extension Manager is already installed, skipping."
 else
   echo "==> 🧩 Installing GNOME Extension Manager..."
-  if ! command -v flatpak &>/dev/null; then
-    echo "    Installing flatpak..."
-    sudo dnf install -y flatpak
-    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-  fi
   flatpak install -y flathub com.mattjakeman.ExtensionManager
 fi
 
@@ -236,7 +239,6 @@ if flatpak list --app 2>/dev/null | grep -q org.gnome.World.PikaBackup; then
   echo "==> 💾 Pika Backup is already installed, skipping."
 else
   echo "==> 💾 Installing Pika Backup..."
-  command -v flatpak &>/dev/null || { sudo dnf install -y flatpak; flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; }
   flatpak install -y flathub org.gnome.World.PikaBackup
 fi
 
@@ -245,7 +247,6 @@ if flatpak list --app 2>/dev/null | grep -q com.slack.Slack; then
   echo "==> 💬 Slack is already installed, skipping."
 else
   echo "==> 💬 Installing Slack..."
-  command -v flatpak &>/dev/null || { sudo dnf install -y flatpak; flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; }
   flatpak install -y flathub com.slack.Slack
 fi
 
