@@ -71,6 +71,7 @@ if command -v tailscale &>/dev/null; then
 else
   echo "==> 🦾 Installing Tailscale..."
   sudo curl -sSL -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/fedora/tailscale.repo
+  sudo rpm --import https://pkgs.tailscale.com/stable/fedora/repo.gpg
   sudo dnf install -y tailscale
   sudo systemctl enable --now tailscaled
 fi
@@ -282,7 +283,7 @@ if command -v devpod &>/dev/null; then
   fi
 fi
 
-# GNOME extensions (Dash2Dock Animated, Tailscale Status, Blur my Shell)
+# GNOME extensions (Dash2Dock Animated, Tailscale Status, Blur my Shell, Clipboard History, Kiwi, AppIndicator Support)
 install_gnome_extension() {
   local pk="$1" name="$2"
   if ! command -v gnome-extensions &>/dev/null || [ -z "${WAYLAND_DISPLAY}${DISPLAY}" ]; then
@@ -292,7 +293,15 @@ install_gnome_extension() {
   command -v jq &>/dev/null || sudo dnf install -y jq
   local info uuid shell_major version_tag tmpzip
   info=$(curl -sL "${EXTENSIONS_GNOME_ORG}/extension-info/?pk=${pk}")
+  if [ -z "$info" ] || [ "${info#\{}" = "$info" ]; then
+    echo "==> 🔌 Skipping $name (invalid API response)."
+    return
+  fi
   uuid=$(echo "$info" | jq -r '.uuid')
+  if [ -z "$uuid" ] || [ "$uuid" = "null" ]; then
+    echo "==> 🔌 Skipping $name (no uuid in API response)."
+    return
+  fi
   if gnome-extensions list 2>/dev/null | grep -qx "$uuid"; then
     echo "==> 🔌 $name is already installed, skipping."
     return
@@ -305,7 +314,7 @@ install_gnome_extension() {
   fi
   echo "==> 🔌 Installing $name..."
   tmpzip=$(mktemp -u).zip
-  curl -sSL "${EXTENSIONS_GNOME_ORG}/download-extension/${pk}.shell-extension.zip?version_tag=${version_tag}" -o "$tmpzip"
+  curl -sSL "${EXTENSIONS_GNOME_ORG}/download-extension/${uuid}.shell-extension.zip?version_tag=${version_tag}" -o "$tmpzip"
   gnome-extensions install --force "$tmpzip"
   rm -f "$tmpzip"
   gnome-extensions enable "$uuid"
@@ -314,6 +323,9 @@ install_gnome_extension() {
 install_gnome_extension 4994 "Dash2Dock Animated"
 install_gnome_extension 5112 "Tailscale Status"
 install_gnome_extension 3193 "Blur my Shell"
+install_gnome_extension 4839 "Clipboard History"
+install_gnome_extension 8276 "Kiwi"
+install_gnome_extension 615 "AppIndicator Support"
 
 echo ""
 echo "✅ Done. Restart your terminal or run: exec zsh"
