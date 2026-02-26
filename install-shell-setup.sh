@@ -283,31 +283,46 @@ if command -v devpod &>/dev/null; then
   fi
 fi
 
+# Helper: add a UUID to org.gnome.shell enabled-extensions via gsettings
+gnome_extension_enable() {
+  local euuid="$1"
+  local cur
+  cur=$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null)
+  echo "$cur" | grep -qF "$euuid" && return
+  if [ "$cur" = "@as []" ] || [ "$cur" = "[]" ]; then
+    gsettings set org.gnome.shell enabled-extensions "['$euuid']"
+  else
+    gsettings set org.gnome.shell enabled-extensions "$(echo "$cur" | sed "s/\]$/, '$euuid']/")"
+  fi
+}
+
 # GNOME extensions (Dash2Dock Animated, Tailscale Status, Blur my Shell, Clipboard History, Kiwi, AppIndicator Support)
 install_gnome_extension() {
   local pk="$1" name="$2"
-  if ! command -v gnome-extensions &>/dev/null || [ -z "${WAYLAND_DISPLAY}${DISPLAY}" ]; then
+  if [ -z "${WAYLAND_DISPLAY}${DISPLAY}" ] || ! command -v gsettings &>/dev/null; then
     echo "==> 🔌 Skipping $name (not in a GNOME session)."
     return
   fi
   command -v jq &>/dev/null || sudo dnf install -y jq
-  local info uuid shell_major version_tag tmpzip
+  local info uuid shell_major version_tag tmpzip installed_uuid ext_dir
   info=$(curl -sL "${EXTENSIONS_GNOME_ORG}/extension-info/?pk=${pk}")
-  if [ -z "$info" ] || [ "${info#\{}" = "$info" ]; then
+  if [ -z "$info" ] || ! echo "$info" | jq -e 'type == "object"' &>/dev/null; then
     echo "==> 🔌 Skipping $name (invalid API response)."
     return
   fi
-  uuid=$(echo "$info" | jq -r '.uuid')
+  uuid=$(echo "$info" | jq -r 'if type == "object" then .uuid else empty end')
   if [ -z "$uuid" ] || [ "$uuid" = "null" ]; then
     echo "==> 🔌 Skipping $name (no uuid in API response)."
     return
   fi
-  if gnome-extensions list 2>/dev/null | grep -qx "$uuid"; then
+  ext_dir="${HOME}/.local/share/gnome-shell/extensions/${uuid}"
+  if [ -d "$ext_dir" ]; then
     echo "==> 🔌 $name is already installed, skipping."
+    gnome_extension_enable "$uuid"
     return
   fi
   shell_major=$(gnome-shell --version 2>/dev/null | grep -oP '\d+' | head -1)
-  version_tag=$(echo "$info" | jq -r --arg v "$shell_major" '.shell_version_map[$v].pk // .shell_version_map | to_entries | map(select(.value.pk != null)) | sort_by(.key | tonumber) | reverse | .[0].value.pk')
+  version_tag=$(echo "$info" | jq -r --arg v "$shell_major" 'if type == "object" then (.shell_version_map[$v].pk // (.shell_version_map | to_entries | map(select(.value | type == "object" and .pk != null)) | sort_by(.key | tonumber) | reverse | .[0].value.pk)) else empty end')
   if [ -z "$version_tag" ] || [ "$version_tag" = "null" ]; then
     echo "==> 🔌 Skipping $name (no compatible version)."
     return
@@ -315,9 +330,11 @@ install_gnome_extension() {
   echo "==> 🔌 Installing $name..."
   tmpzip=$(mktemp -u).zip
   curl -sSL "${EXTENSIONS_GNOME_ORG}/download-extension/${uuid}.shell-extension.zip?version_tag=${version_tag}" -o "$tmpzip"
-  gnome-extensions install --force "$tmpzip"
+  installed_uuid=$(unzip -p "$tmpzip" metadata.json 2>/dev/null | jq -r '.uuid // empty' 2>/dev/null)
+  mkdir -p "${HOME}/.local/share/gnome-shell/extensions"
+  unzip -qo "$tmpzip" -d "${HOME}/.local/share/gnome-shell/extensions/${installed_uuid:-$uuid}"
   rm -f "$tmpzip"
-  gnome-extensions enable "$uuid"
+  gnome_extension_enable "${installed_uuid:-$uuid}"
 }
 
 install_gnome_extension 4994 "Dash2Dock Animated"
