@@ -304,7 +304,8 @@ install_gnome_extension() {
     echo "==> 🔌 Skipping $name (not in a GNOME session)."
     return
   fi
-  command -v jq &>/dev/null || sudo dnf install -y jq
+  command -v jq    &>/dev/null || sudo dnf install -y jq
+  command -v unzip &>/dev/null || sudo dnf install -y unzip
   local info uuid shell_major version_tag tmpzip installed_uuid ext_dir
   info=$(curl -sL "${EXTENSIONS_GNOME_ORG}/extension-info/?pk=${pk}")
   if [ -z "$info" ] || ! echo "$info" | jq -e 'type == "object"' &>/dev/null; then
@@ -331,12 +332,26 @@ install_gnome_extension() {
   echo "==> 🔌 Installing $name..."
   tmpzip=$(mktemp -u).zip
   curl -sSL "${EXTENSIONS_GNOME_ORG}/download-extension/${uuid}.shell-extension.zip?version_tag=${version_tag}" -o "$tmpzip"
+  if ! unzip -t "$tmpzip" &>/dev/null; then
+    echo "==> 🔌 Failed to download $name (invalid zip). Skipping."
+    rm -f "$tmpzip"
+    return
+  fi
   installed_uuid=$(unzip -p "$tmpzip" metadata.json 2>/dev/null | jq -r '.uuid // empty' 2>/dev/null)
-  mkdir -p "${HOME}/.local/share/gnome-shell/extensions"
-  unzip -qo "$tmpzip" -d "${HOME}/.local/share/gnome-shell/extensions/${installed_uuid:-$uuid}"
+  local final_uuid="${installed_uuid:-$uuid}"
+  mkdir -p "${HOME}/.local/share/gnome-shell/extensions/${final_uuid}"
+  unzip -qo "$tmpzip" -d "${HOME}/.local/share/gnome-shell/extensions/${final_uuid}"
   rm -f "$tmpzip"
-  gnome_extension_enable "${installed_uuid:-$uuid}"
+  if [ ! -f "${HOME}/.local/share/gnome-shell/extensions/${final_uuid}/metadata.json" ]; then
+    echo "==> 🔌 Warning: $name extraction may have failed (no metadata.json found)."
+    return
+  fi
+  gnome_extension_enable "$final_uuid"
 }
+
+if command -v gsettings &>/dev/null && [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ]; then
+  gsettings set org.gnome.shell disable-user-extensions false 2>/dev/null || true
+fi
 
 install_gnome_extension 4994 "Dash2Dock Animated"
 install_gnome_extension 5112 "Tailscale Status"
@@ -348,3 +363,4 @@ install_gnome_extension 615 "AppIndicator Support"
 echo ""
 echo "✅ Done. Restart your terminal or run: exec zsh"
 echo "💡 Set Roboto Mono Nerd Font in your terminal profile for icons to show."
+echo "🔄 Log out and log back in for GNOME extensions to become active."
