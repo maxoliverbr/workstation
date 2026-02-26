@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
-# Install: zsh, Roboto Mono Nerd Font, Starship (Catppuccin), Ranger, Tailscale, Cursor, Claude Code, Chrome, Slack, git (global config), GNOME Extension Manager + extensions
-# For Fedora/RHEL (uses dnf). Run with: bash install-shell-setup.sh
+# Install: zsh, Roboto Mono Nerd Font, Starship (Catppuccin), Ranger, Tailscale, Cursor, Claude Code, Chrome, Slack, Apostrophe, Obsidian,
+#          git (global config), GNOME Extension Manager + extensions,
+#          system tools (btop, duf, ncdu, timeshift), security (age, nmap, sops, wireshark),
+#          terminal tools (tmux, zellij, fzf, bat, eza, ripgrep, fd, delta, zoxide, atuin, lazygit, dust),
+#          dev tools (yq, xh, direnv, mise, bun, lazydocker)
+# For Fedora/RHEL (uses dnf). Run with: bash install-shell-setup.sh [--debug]
 
 set -e
+
+DEBUG=0
+for arg in "$@"; do [ "$arg" = "--debug" ] && DEBUG=1; done
+if [ "$DEBUG" = "1" ]; then exec 3>&1; else exec 3>/dev/null; fi
+
+# DNF wrapper: quiet by default, verbose with --debug
+dnf_quiet() { if [ "$DEBUG" = "1" ]; then sudo dnf "$@"; else sudo dnf -q "$@"; fi; }
 
 FONT_DIR="${HOME}/.local/share/fonts"
 CONFIG_DIR="${HOME}/.config"
@@ -14,7 +25,7 @@ if command -v zsh &>/dev/null; then
   echo "==> 🐚 zsh is already installed, skipping."
 else
   echo "==> 🐚 Installing zsh..."
-  sudo dnf install -y zsh
+  dnf_quiet install -y zsh
 fi
 if [ "$SHELL" != "$(which zsh)" ]; then
   echo "==> 🐚 Changing default shell to zsh..."
@@ -31,7 +42,7 @@ else
   curl -sSL "$ROBOTO_MONO_URL" -o "$tmp_font/RobotoMono.zip"
   unzip -qo "$tmp_font/RobotoMono.zip" -d "$tmp_font"
   cp "$tmp_font"/*.ttf "$FONT_DIR/" 2>/dev/null || true
-  fc-cache -fv
+  fc-cache -f
 fi
 
 export PATH="${HOME}/.local/bin:${PATH}"
@@ -39,7 +50,7 @@ if command -v starship &>/dev/null; then
   echo "==> 🚀 Starship is already installed, skipping."
 else
   echo "==> 🚀 Installing Starship..."
-  curl -sS https://starship.rs/install.sh | sh -s -- -y
+  curl -sS https://starship.rs/install.sh | sh -s -- -y >&3
   export PATH="${HOME}/.local/bin:${PATH}"
 fi
 
@@ -66,7 +77,7 @@ if command -v ranger &>/dev/null; then
   echo "==> 📁 Ranger is already installed, skipping."
 else
   echo "==> 📁 Installing Ranger..."
-  sudo dnf install -y ranger
+  dnf_quiet install -y ranger
 fi
 
 # Tailscale
@@ -76,8 +87,8 @@ else
   echo "==> 🦾 Installing Tailscale..."
   sudo curl -sSL -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/fedora/tailscale.repo
   sudo rpm --import https://pkgs.tailscale.com/stable/fedora/repo.gpg
-  sudo dnf install -y tailscale
-  sudo systemctl enable --now tailscaled
+  dnf_quiet install -y tailscale
+  sudo systemctl enable --now tailscaled >&3
 fi
 
 # Cursor IDE
@@ -94,7 +105,7 @@ else
   if [ -n "$cursor_arch" ]; then
     tmp_rpm=$(mktemp -u).rpm
     curl -sSL "https://api2.cursor.sh/updates/download/golden/${cursor_arch}/cursor/${CURSOR_VERSION}" -o "$tmp_rpm"
-    sudo dnf install -y "$tmp_rpm"
+    dnf_quiet install -y "$tmp_rpm"
     rm -f "$tmp_rpm"
   fi
 fi
@@ -118,7 +129,7 @@ if command -v claude &>/dev/null; then
   echo "==> 🤖 Claude Code is already installed, skipping."
 else
   echo "==> 🤖 Installing Claude Code..."
-  curl -fsSL https://claude.ai/install.sh | bash
+  curl -fsSL https://claude.ai/install.sh | bash >&3
   export PATH="${HOME}/.local/bin:${PATH}"
 fi
 
@@ -129,7 +140,7 @@ else
   echo "==> 📟 Installing VS Code..."
   sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
   sudo sh -c 'echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/vscode.repo'
-  sudo dnf install -y code
+  dnf_quiet install -y code
 fi
 
 # Google Chrome
@@ -142,7 +153,7 @@ else
       sudo rpm --import https://dl.google.com/linux/linux_signing_key.pub
       tmp_chrome=$(mktemp -u).rpm
       curl -sSL -o "$tmp_chrome" https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
-      sudo dnf install -y "$tmp_chrome"
+      dnf_quiet install -y "$tmp_chrome"
       rm -f "$tmp_chrome"
       ;;
     *) echo "==> 🌐 Skipping Chrome (unsupported arch)." ;;
@@ -210,13 +221,13 @@ if command -v gh &>/dev/null; then
   echo "==> 🐙 gh is already installed, skipping."
 else
   echo "==> 🐙 Installing GitHub CLI (gh)..."
-  sudo dnf install -y gh
+  dnf_quiet install -y gh
 fi
 
 # Git (install + global config)
 if ! command -v git &>/dev/null; then
   echo "==> 📦 Installing git..."
-  sudo dnf install -y git
+  dnf_quiet install -y git
 fi
 echo "==> 📦 Configuring git (defaultBranch, user.email, user.name)..."
 git config --global init.defaultBranch main
@@ -226,16 +237,16 @@ git config --global user.name "Max Oliver"
 # Ensure flatpak + Flathub are available (required for all Flatpak installs below)
 if ! command -v flatpak &>/dev/null; then
   echo "==> 📦 Installing flatpak..."
-  sudo dnf install -y flatpak
+  dnf_quiet install -y flatpak
 fi
-flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo >&3
 
 # GNOME Extension Manager (Flatpak)
 if flatpak list --app 2>/dev/null | grep -q com.mattjakeman.ExtensionManager; then
   echo "==> 🧩 GNOME Extension Manager is already installed, skipping."
 else
   echo "==> 🧩 Installing GNOME Extension Manager..."
-  flatpak install -y flathub com.mattjakeman.ExtensionManager
+  flatpak install -y flathub com.mattjakeman.ExtensionManager >&3
 fi
 
 # Pika Backup (Flatpak)
@@ -243,7 +254,7 @@ if flatpak list --app 2>/dev/null | grep -q org.gnome.World.PikaBackup; then
   echo "==> 💾 Pika Backup is already installed, skipping."
 else
   echo "==> 💾 Installing Pika Backup..."
-  flatpak install -y flathub org.gnome.World.PikaBackup
+  flatpak install -y flathub org.gnome.World.PikaBackup >&3
 fi
 
 # Slack (Flatpak)
@@ -251,7 +262,23 @@ if flatpak list --app 2>/dev/null | grep -q com.slack.Slack; then
   echo "==> 💬 Slack is already installed, skipping."
 else
   echo "==> 💬 Installing Slack..."
-  flatpak install -y flathub com.slack.Slack
+  flatpak install -y flathub com.slack.Slack >&3
+fi
+
+# Apostrophe - Markdown editor (Flatpak)
+if flatpak list --app 2>/dev/null | grep -q org.gnome.gitlab.somas.Apostrophe; then
+  echo "==> 📄 Apostrophe is already installed, skipping."
+else
+  echo "==> 📄 Installing Apostrophe..."
+  flatpak install -y flathub org.gnome.gitlab.somas.Apostrophe >&3
+fi
+
+# Obsidian (Flatpak)
+if flatpak list --app 2>/dev/null | grep -q md.obsidian.Obsidian; then
+  echo "==> 🔮 Obsidian is already installed, skipping."
+else
+  echo "==> 🔮 Installing Obsidian..."
+  flatpak install -y flathub md.obsidian.Obsidian >&3
 fi
 
 # DevPod + Podman (CLI only; desktop app has EGL/WebKit issues on Fedora)
@@ -259,7 +286,7 @@ if command -v podman &>/dev/null; then
   echo "==> 🐳 Podman is already installed, skipping."
 else
   echo "==> 🐳 Installing Podman..."
-  sudo dnf install -y podman
+  dnf_quiet install -y podman
 fi
 if command -v devpod &>/dev/null; then
   echo "==> 📦 DevPod CLI is already installed, skipping."
@@ -283,10 +310,75 @@ if command -v devpod &>/dev/null; then
     echo "==> 📦 DevPod provider 'podman' already configured, skipping."
   else
     echo "==> 📦 Configuring DevPod to use Podman..."
-    devpod provider add docker --name podman -o DOCKER_PATH=podman
-    devpod provider use podman
+    devpod provider add docker --name podman -o DOCKER_PATH=podman >&3
+    devpod provider use podman >&3
   fi
 fi
+
+# System tools
+echo "==> 🖥️  Installing system tools..."
+dnf_quiet install -y btop duf ncdu timeshift
+
+# Security / Network
+echo "==> 🔒 Installing security/network tools..."
+dnf_quiet install -y age nmap wireshark sops
+
+# Terminal / Shell tools
+echo "==> 💻 Installing terminal tools..."
+dnf_quiet install -y tmux zellij fzf bat eza ripgrep fd-find git-delta zoxide atuin lazygit du-dust
+
+# Dev tools
+echo "==> 🔧 Installing dev tools (yq, xh, direnv)..."
+dnf_quiet install -y yq xh direnv
+
+# mise (runtime version manager)
+if command -v mise &>/dev/null; then
+  echo "==> 🔧 mise is already installed, skipping."
+else
+  echo "==> 🔧 Installing mise..."
+  curl https://mise.run | sh >&3
+fi
+
+# Bun
+if command -v bun &>/dev/null; then
+  echo "==> 🍞 Bun is already installed, skipping."
+else
+  echo "==> 🍞 Installing Bun..."
+  curl -fsSL https://bun.sh/install | bash >&3
+fi
+
+# lazydocker
+if command -v lazydocker &>/dev/null; then
+  echo "==> 🐳 lazydocker is already installed, skipping."
+else
+  echo "==> 🐳 Installing lazydocker..."
+  case "$(uname -m)" in
+    x86_64) ld_arch="x86_64" ;;
+    aarch64|arm64) ld_arch="arm64" ;;
+    *) echo "==> 🐳 Skipping lazydocker (unsupported arch)."; ld_arch="" ;;
+  esac
+  if [ -n "$ld_arch" ]; then
+    mkdir -p "${HOME}/.local/bin"
+    ld_version=$(curl -sL https://api.github.com/repos/jesseduffield/lazydocker/releases/latest | jq -r '.tag_name')
+    curl -sSL "https://github.com/jesseduffield/lazydocker/releases/download/${ld_version}/lazydocker_${ld_version#v}_Linux_${ld_arch}.tar.gz" | tar xz -C /tmp lazydocker >&3
+    install -c -m 0755 /tmp/lazydocker "${HOME}/.local/bin/lazydocker"
+    rm -f /tmp/lazydocker
+  fi
+fi
+
+# Zsh integrations
+echo "==> 🐚 Updating zshrc with tool integrations..."
+add_to_zshrc() {
+  local marker="$1" line="$2"
+  grep -qF "$marker" "${HOME}/.zshrc" 2>/dev/null || { echo ""; echo "$line"; } >> "${HOME}/.zshrc"
+}
+add_to_zshrc 'zoxide init'   'eval "$(zoxide init zsh)"'
+add_to_zshrc 'atuin init'    'eval "$(atuin init zsh)"'
+add_to_zshrc 'mise activate' 'eval "$(mise activate zsh)"'
+add_to_zshrc 'direnv hook'   'eval "$(direnv hook zsh)"'
+add_to_zshrc 'BUN_INSTALL'   'export BUN_INSTALL="$HOME/.bun"; export PATH="$BUN_INSTALL/bin:$PATH"'
+add_to_zshrc 'fzf/shell/key-bindings' '[ -f /usr/share/fzf/shell/key-bindings.zsh ] && source /usr/share/fzf/shell/key-bindings.zsh'
+add_to_zshrc 'fzf/shell/completion'   '[ -f /usr/share/fzf/shell/completion.zsh ]   && source /usr/share/fzf/shell/completion.zsh'
 
 # Helper: add a UUID to org.gnome.shell enabled-extensions via gsettings
 gnome_extension_enable() {
@@ -308,8 +400,8 @@ install_gnome_extension() {
     echo "==> 🔌 Skipping $name (not in a GNOME session)."
     return
   fi
-  command -v jq    &>/dev/null || sudo dnf install -y jq
-  command -v unzip &>/dev/null || sudo dnf install -y unzip
+  command -v jq    &>/dev/null || dnf_quiet install -y jq
+  command -v unzip &>/dev/null || dnf_quiet install -y unzip
   local info uuid shell_major version_tag tmpzip installed_uuid ext_dir
   info=$(curl -sL "${EXTENSIONS_GNOME_ORG}/extension-info/?pk=${pk}")
   if [ -z "$info" ] || ! echo "$info" | jq -e 'type == "object"' &>/dev/null; then
