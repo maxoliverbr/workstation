@@ -175,10 +175,8 @@ if command -v claude &>/dev/null; then
   echo "==> 🤖 Claude Code is already installed, skipping."
 else
   echo "==> 🤖 Installing Claude Code..."
-  if ! command -v npm &>/dev/null; then
-    dnf_quiet install -y nodejs
-  fi
-  npm install -g @anthropic-ai/claude-code >&3 2>&3
+  curl -fsSL https://claude.ai/install.sh | bash >&3 2>&3
+  export PATH="${HOME}/.local/bin:${PATH}"
 fi
 
 # VS Code
@@ -417,7 +415,7 @@ if command -v mise &>/dev/null; then
   echo "==> 🔧 mise is already installed, skipping."
 else
   echo "==> 🔧 Installing mise..."
-  curl -fsSL https://mise.run | sh >&3 2>&3
+  curl https://mise.run | sh >&3 2>&3
 fi
 
 # Bun
