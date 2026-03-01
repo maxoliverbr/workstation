@@ -61,7 +61,7 @@ Optional:
 
 ### Terminal tools
 
-- **tmux**, **fzf**, **bat**, **ripgrep**, **fd-find**, **zoxide**, **atuin** (dnf)
+- **tmux**, **fzf**, **bat**, **ripgrep**, **fd-find**, **zoxide**, **atuin**, **vim** (dnf)
 - **eza**, **lazygit**, **delta** (GitHub releases → `~/.local/bin`)
 
 ### Dev tools

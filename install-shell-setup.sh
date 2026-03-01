@@ -2,7 +2,7 @@
 # Install: zsh, Roboto Mono Nerd Font, Starship (Catppuccin), Ranger, Tailscale, Cursor, Claude Code, VS Code, Chrome, WhatsApp webapp,
 #          git (global config), Flatpak + Flathub (GNOME Extension Manager, Pika Backup, Slack, Obsidian), Podman, DevPod,
 #          system tools (btop, duf, ncdu), security (age, nmap),
-#          terminal tools (tmux, fzf, bat, ripgrep, fd, zoxide, atuin, eza, lazygit, delta),
+#          terminal tools (tmux, fzf, bat, ripgrep, fd, zoxide, atuin, vim, eza, lazygit, delta),
 #          dev tools (yq, xh, direnv, lazydocker, Bun), GNOME extensions (Dash2Dock, Tailscale Status, Blur my Shell, etc.)
 # For Fedora/RHEL (uses dnf). Run with: bash install-shell-setup.sh [--silent]
 
@@ -447,7 +447,7 @@ install_dnf_group "🖥️ " "system"   btop:btop duf:duf ncdu:ncdu
 install_dnf_group "🔒" "security" age:age nmap:nmap
 
 # Terminal / Shell tools (packages available in Fedora repos)
-install_dnf_group "💻" "terminal" tmux:tmux fzf:fzf bat:bat rg:ripgrep fd:fd-find zoxide:zoxide atuin:atuin
+install_dnf_group "💻" "terminal" tmux:tmux fzf:fzf bat:bat rg:ripgrep fd:fd-find zoxide:zoxide atuin:atuin vim:vim
 
 # Terminal tools not in Fedora repos — installed from GitHub releases
 install_gh_binary "eza"     "eza-community/eza"     "eza_x86_64-unknown-linux-gnu\\.tar\\.gz$"       "eza_aarch64-unknown-linux-gnu\\.tar\\.gz$"
