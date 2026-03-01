@@ -19,6 +19,8 @@ if [ "$SILENT" = "1" ]; then exec 3>/dev/null; else exec 3>&1; fi
 
 FONT_DIR="${HOME}/.local/share/fonts"
 CONFIG_DIR="${HOME}/.config"
+NF_VERSION=$(curl -sL https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+ROBOTO_MONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NF_VERSION}/RobotoMono.zip"
 EXTENSIONS_GNOME_ORG="https://extensions.gnome.org"
 
 # DNF wrapper: verbose by default, quiet with --silent
@@ -33,23 +35,6 @@ install_dnf_pkg() {
   else
     echo "==> $emoji Installing $label..."
     dnf_quiet install -y "$pkg"
-  fi
-}
-
-# Install a group of dnf packages in one call, skipping those already present
-# Usage: install_dnf_group <emoji> <label> <cmd:pkg> [<cmd:pkg> ...]
-install_dnf_group() {
-  local emoji="$1" label="$2"; shift 2
-  local missing=()
-  for pair in "$@"; do
-    local cmd="${pair%%:*}" pkg="${pair##*:}"
-    command -v "$cmd" &>/dev/null || missing+=("$pkg")
-  done
-  if [ "${#missing[@]}" -eq 0 ]; then
-    echo "==> $emoji $label tools are already installed, skipping."
-  else
-    echo "==> $emoji Installing $label tools: ${missing[*]}..."
-    dnf_quiet install -y "${missing[@]}"
   fi
 }
 
@@ -121,8 +106,6 @@ if [ -n "$(ls "$FONT_DIR"/RobotoMono*.ttf 2>/dev/null)" ]; then
   echo "==> 🔤 Roboto Mono Nerd Font is already installed, skipping."
 else
   echo "==> 🔤 Installing Roboto Mono Nerd Font..."
-  NF_VERSION=$(curl -sL https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
-  ROBOTO_MONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NF_VERSION}/RobotoMono.zip"
   mkdir -p "$FONT_DIR"
   tmp_font=$(mktemp -d)
   trap "rm -rf $tmp_font" EXIT
@@ -314,26 +297,45 @@ if ! command -v flatpak &>/dev/null; then
 fi
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo >&3 2>&3
 
-# Flatpak apps (GNOME Extension Manager, Pika Backup, Slack, Apostrophe, Obsidian)
-flatpak_install_group() {
-  local missing=()
-  for app in "$@"; do
-    flatpak list --app 2>/dev/null | grep -q "$app" || missing+=("$app")
-  done
-  if [ "${#missing[@]}" -eq 0 ]; then
-    echo "==> 📦 All Flatpak apps already installed, skipping."
-  else
-    echo "==> 📦 Installing Flatpak apps: ${missing[*]}..."
-    flatpak install -y flathub "${missing[@]}" >&3 2>&3
-  fi
-}
+# GNOME Extension Manager (Flatpak)
+if flatpak list --app 2>/dev/null | grep -q com.mattjakeman.ExtensionManager; then
+  echo "==> 🧩 GNOME Extension Manager is already installed, skipping."
+else
+  echo "==> 🧩 Installing GNOME Extension Manager..."
+  flatpak install -y flathub com.mattjakeman.ExtensionManager >&3 2>&3
+fi
 
-flatpak_install_group \
-  com.mattjakeman.ExtensionManager \
-  org.gnome.World.PikaBackup \
-  com.slack.Slack \
-  org.gnome.gitlab.somas.Apostrophe \
-  md.obsidian.Obsidian
+# Pika Backup (Flatpak)
+if flatpak list --app 2>/dev/null | grep -q org.gnome.World.PikaBackup; then
+  echo "==> 💾 Pika Backup is already installed, skipping."
+else
+  echo "==> 💾 Installing Pika Backup..."
+  flatpak install -y flathub org.gnome.World.PikaBackup >&3 2>&3
+fi
+
+# Slack (Flatpak)
+if flatpak list --app 2>/dev/null | grep -q com.slack.Slack; then
+  echo "==> 💬 Slack is already installed, skipping."
+else
+  echo "==> 💬 Installing Slack..."
+  flatpak install -y flathub com.slack.Slack >&3 2>&3
+fi
+
+# Apostrophe - Markdown editor (Flatpak)
+if flatpak list --app 2>/dev/null | grep -q org.gnome.gitlab.somas.Apostrophe; then
+  echo "==> 📄 Apostrophe is already installed, skipping."
+else
+  echo "==> 📄 Installing Apostrophe..."
+  flatpak install -y flathub org.gnome.gitlab.somas.Apostrophe >&3 2>&3
+fi
+
+# Obsidian (Flatpak)
+if flatpak list --app 2>/dev/null | grep -q md.obsidian.Obsidian; then
+  echo "==> 🔮 Obsidian is already installed, skipping."
+else
+  echo "==> 🔮 Installing Obsidian..."
+  flatpak install -y flathub md.obsidian.Obsidian >&3 2>&3
+fi
 
 # DevPod + Podman (CLI only; desktop app has EGL/WebKit issues on Fedora)
 if command -v podman &>/dev/null; then
@@ -370,13 +372,22 @@ if command -v devpod &>/dev/null; then
 fi
 
 # System tools
-install_dnf_group "🖥️ " "system"   btop:btop duf:duf ncdu:ncdu
+install_dnf_pkg "🖥️ " "btop"      btop
+install_dnf_pkg "🖥️ " "duf"       duf
+install_dnf_pkg "🖥️ " "ncdu"      ncdu
 
 # Security / Network
-install_dnf_group "🔒" "security" age:age nmap:nmap
+install_dnf_pkg "🔒" "age"       age
+install_dnf_pkg "🔒" "nmap"      nmap
 
 # Terminal / Shell tools (packages available in Fedora repos)
-install_dnf_group "💻" "terminal" tmux:tmux fzf:fzf bat:bat rg:ripgrep fd:fd-find zoxide:zoxide atuin:atuin
+install_dnf_pkg "💻" "tmux"    tmux
+install_dnf_pkg "💻" "fzf"     fzf
+install_dnf_pkg "💻" "bat"     bat
+install_dnf_pkg "💻" "ripgrep" rg    ripgrep
+install_dnf_pkg "💻" "fd"      fd    fd-find
+install_dnf_pkg "💻" "zoxide"  zoxide
+install_dnf_pkg "💻" "atuin"   atuin
 
 # Terminal tools not in Fedora repos — installed from GitHub releases
 install_gh_binary "eza"     "eza-community/eza"     "eza_x86_64-unknown-linux-gnu\\.tar\\.gz$"       "eza_aarch64-unknown-linux-gnu\\.tar\\.gz$"
@@ -386,8 +397,9 @@ install_gh_binary "delta"   "dandavison/delta"       "delta-.*-x86_64-unknown-li
 install_gh_binary "dust"    "bootandy/dust"          "dust-.*-x86_64-unknown-linux-musl\\.tar\\.gz$"  "dust-.*-aarch64-unknown-linux-musl\\.tar\\.gz$"
 
 # Dev tools
-install_dnf_group "🔧" "dev" yq:yq direnv:direnv
+install_dnf_pkg "🔧" "yq"     yq
 install_gh_binary "xh" "ducaale/xh" "xh-.*-x86_64-unknown-linux-musl\\.tar\\.gz$" "xh-.*-aarch64-unknown-linux-musl\\.tar\\.gz$"
+install_dnf_pkg "🔧" "direnv" direnv
 
 install_gh_binary "lazydocker" "jesseduffield/lazydocker" "lazydocker_.*_Linux_x86_64\\.tar\\.gz$" "lazydocker_.*_Linux_arm64\\.tar\\.gz$"
 
