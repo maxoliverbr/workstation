@@ -1,5 +1,6 @@
 tar --exclude='*/Cache' \
     --exclude='*/CacheStorage' \
+    --exclude='*/CacheData' \
     --exclude='*/ScriptCache' \
     --exclude='*/node_modules' \
     --exclude='*/OptGuideOnDeviceModel' \
