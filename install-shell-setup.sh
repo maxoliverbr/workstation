@@ -13,6 +13,30 @@ if [ "$EUID" -eq 0 ]; then
   exit 1
 fi
 
+# Require Fedora or RHEL (or a derivative: CentOS, Rocky, Alma, etc.)
+if [ -f /etc/os-release ]; then
+  # shellcheck source=/dev/null
+  . /etc/os-release
+fi
+if [ "$ID" != "fedora" ] && [ "$ID" != "rhel" ] && ! echo "${ID_LIKE:-}" | grep -qw rhel; then
+  echo "Error: this script requires Fedora or RHEL (or a derivative). Detected OS: ${ID:-unknown}" >&2
+  exit 1
+fi
+
+# Require curl and dnf to be available before starting
+for cmd in curl dnf; do
+  if ! command -v "$cmd" &>/dev/null; then
+    echo "Error: required command '$cmd' is not available. Install it or use a supported system (Fedora/RHEL)." >&2
+    exit 1
+  fi
+done
+
+# Require working internet (needed for dnf, flatpak, and all downloads)
+if ! curl -sS -o /dev/null -f --connect-timeout 5 --max-time 10 https://api.github.com 2>/dev/null; then
+  echo "Error: no working internet connection. Check your network and try again." >&2
+  exit 1
+fi
+
 SILENT=0
 for arg in "$@"; do [ "$arg" = "--silent" ] && SILENT=1; done
 if [ "$SILENT" = "1" ]; then exec 3>/dev/null; else exec 3>&1; fi
@@ -239,6 +263,30 @@ else
   sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc >&3 2>&3
   sudo sh -c 'echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/vscode.repo'
   dnf_quiet install -y code
+fi
+
+# Set Roboto Mono Nerd Font in Cursor and VS Code (editor + integrated terminal)
+EDITOR_FONT="RobotoMono Nerd Font"
+set_editor_font() {
+  local config_name="$1"
+  local user_dir="${HOME}/.config/${config_name}/User"
+  local settings_file="${user_dir}/settings.json"
+  [ -d "$user_dir" ] || mkdir -p "$user_dir"
+  command -v jq &>/dev/null || dnf_quiet install -y jq
+  local existing
+  existing=$(cat "$settings_file" 2>/dev/null) || existing="{}"
+  echo "$existing" | jq --arg font "$EDITOR_FONT" '
+    .["editor.fontFamily"] = $font |
+    .["terminal.integrated.fontFamily"] = $font
+  ' > "${settings_file}.new" && mv "${settings_file}.new" "$settings_file"
+}
+if command -v cursor &>/dev/null; then
+  echo "==> 📝 Setting Roboto Mono Nerd Font in Cursor..."
+  set_editor_font "Cursor"
+fi
+if command -v code &>/dev/null; then
+  echo "==> 📟 Setting Roboto Mono Nerd Font in VS Code..."
+  set_editor_font "Code"
 fi
 
 # Google Chrome
