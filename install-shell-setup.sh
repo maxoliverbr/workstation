@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Install: zsh, Roboto Mono Nerd Font, Starship (Catppuccin), Ranger, Tailscale, Cursor, Claude Code, Chrome, Slack, Apostrophe, Obsidian,
-#          git (global config), GNOME Extension Manager + extensions,
-#          system tools (btop, duf, ncdu, timeshift), security (age, nmap, sops, wireshark),
-#          terminal tools (tmux, zellij, fzf, bat, eza, ripgrep, fd, delta, zoxide, atuin, lazygit, dust),
-#          dev tools (yq, xh, direnv, lazydocker)
+# Install: zsh, Roboto Mono Nerd Font, Starship (Catppuccin), Ranger, Tailscale, Cursor, Claude Code, VS Code, Chrome, WhatsApp webapp,
+#          git (global config), Flatpak + Flathub (GNOME Extension Manager, Pika Backup, Slack, Obsidian), Podman, DevPod,
+#          system tools (btop, duf, ncdu), security (age, nmap),
+#          terminal tools (tmux, fzf, bat, ripgrep, fd, zoxide, atuin, eza, lazygit, delta),
+#          dev tools (yq, xh, direnv, lazydocker, Bun), GNOME extensions (Dash2Dock, Tailscale Status, Blur my Shell, etc.)
 # For Fedora/RHEL (uses dnf). Run with: bash install-shell-setup.sh [--silent]
 
 set -e
@@ -323,7 +323,7 @@ if ! command -v flatpak &>/dev/null; then
 fi
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo >&3 2>&3
 
-# Flatpak apps (GNOME Extension Manager, Pika Backup, Slack, Apostrophe, Obsidian)
+# Flatpak apps (GNOME Extension Manager, Pika Backup, Slack, Obsidian)
 flatpak_install_group() {
   local missing=()
   for app in "$@"; do
@@ -341,8 +341,22 @@ flatpak_install_group \
   com.mattjakeman.ExtensionManager \
   org.gnome.World.PikaBackup \
   com.slack.Slack \
-  org.gnome.gitlab.somas.Apostrophe \
   md.obsidian.Obsidian
+
+# Pin Obsidian to dash (GNOME favorites) when in a graphical session
+if flatpak list --app 2>/dev/null | grep -q md.obsidian.Obsidian && [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ] && command -v gsettings &>/dev/null; then
+  favs=$(gsettings get org.gnome.shell favorite-apps 2>/dev/null)
+  if echo "$favs" | grep -q 'obsidian'; then
+    echo "==> 🔮 Obsidian already in dash favorites, skipping."
+  else
+    echo "==> 🔮 Pinning Obsidian to dash..."
+    if [ "$favs" = "@as []" ] || [ "$favs" = "[]" ]; then
+      gsettings set org.gnome.shell favorite-apps "['md.obsidian.Obsidian.desktop']"
+    else
+      gsettings set org.gnome.shell favorite-apps "$(echo "$favs" | sed "s/\]$/, 'md.obsidian.Obsidian.desktop']/")"
+    fi
+  fi
+fi
 
 # DevPod + Podman (CLI only; desktop app has EGL/WebKit issues on Fedora)
 if command -v podman &>/dev/null; then
@@ -389,10 +403,8 @@ install_dnf_group "💻" "terminal" tmux:tmux fzf:fzf bat:bat rg:ripgrep fd:fd-f
 
 # Terminal tools not in Fedora repos — installed from GitHub releases
 install_gh_binary "eza"     "eza-community/eza"     "eza_x86_64-unknown-linux-gnu\\.tar\\.gz$"       "eza_aarch64-unknown-linux-gnu\\.tar\\.gz$"
-install_gh_binary "zellij"  "zellij-org/zellij"     "zellij-x86_64-unknown-linux-musl\\.tar\\.gz$"   "zellij-aarch64-unknown-linux-musl\\.tar\\.gz$"
 install_gh_binary "lazygit" "jesseduffield/lazygit"  "lazygit_.*_linux_x86_64\\.tar\\.gz$"            "lazygit_.*_linux_arm64\\.tar\\.gz$"
 install_gh_binary "delta"   "dandavison/delta"       "delta-.*-x86_64-unknown-linux-gnu\\.tar\\.gz$"  "delta-.*-aarch64-unknown-linux-gnu\\.tar\\.gz$"
-install_gh_binary "dust"    "bootandy/dust"          "dust-.*-x86_64-unknown-linux-musl\\.tar\\.gz$"  "dust-.*-aarch64-unknown-linux-musl\\.tar\\.gz$"
 
 # Dev tools
 install_dnf_group "🔧" "dev" yq:yq direnv:direnv
