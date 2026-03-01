@@ -1,0 +1,8 @@
+be.alexandervanhee.gradia
+com.github.PintaProject.Pinta
+com.mattjakeman.ExtensionManager
+com.rustdesk.RustDesk
+com.slack.Slack
+io.github.alainm23.planify
+net.codelogistics.webapps
+org.gnome.World.PikaBackup
