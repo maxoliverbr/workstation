@@ -55,9 +55,10 @@ CONFIG_DIR="${HOME}/.config"
 EXTENSIONS_GNOME_ORG="https://extensions.gnome.org"
 
 # rpm-ostree wrapper: layer packages, skipping those already layered or requested (avoids "Package is already requested")
+# Check all deployments (booted + pending) so we see requested-packages on the pending one too
 ostree_install() {
   local to_install=() pkg layered_requested
-  layered_requested=$(rpm-ostree status --json 2>/dev/null | jq -r '.deployments[] | select(.booted) | ((.packages // []) + (.["requested-packages"] // [])) | .[]' 2>/dev/null) || true
+  layered_requested=$(rpm-ostree status --json 2>/dev/null | jq -r '.deployments[] | ((.packages // []) + (.["requested-packages"] // [])) | .[]' 2>/dev/null | sort -u) || true
   for pkg in "$@"; do
     if [[ "$pkg" == */* ]]; then
       to_install+=("$pkg")
