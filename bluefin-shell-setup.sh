@@ -61,7 +61,14 @@ ostree_install() {
   layered_requested=$(rpm-ostree status --json 2>/dev/null | jq -r '.deployments[] | ((.packages // []) + (.["requested-packages"] // [])) | .[]' 2>/dev/null | sort -u) || true
   for pkg in "$@"; do
     if [[ "$pkg" == */* ]]; then
-      to_install+=("$pkg")
+      # Local RPM: check if its package name is already layered/requested
+      local pkg_name
+      pkg_name=$(rpm -qp --qf '%{NAME}' "$pkg" 2>/dev/null) || true
+      if [ -n "$pkg_name" ] && echo "$layered_requested" | grep -qxF "$pkg_name" 2>/dev/null; then
+        : # already layered or requested, skip
+      else
+        to_install+=("$pkg")
+      fi
     elif echo "$layered_requested" | grep -qxF "$pkg" 2>/dev/null; then
       : # already layered or requested, skip
     else
