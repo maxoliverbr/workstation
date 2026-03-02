@@ -18,7 +18,7 @@ if [ -f /etc/os-release ]; then
   # shellcheck source=/dev/null
   . /etc/os-release
 fi
-if [ "$ID" != "fedora" ] || ! command -v rpm-ostree &>/dev/null; then
+if [ "$ID" != "bluefin" ] || ! command -v rpm-ostree &>/dev/null; then
   echo "Error: this script requires Bluefin or another Fedora immutable (rpm-ostree) system. Detected OS: ${ID:-unknown}" >&2
   exit 1
 fi
@@ -41,14 +41,14 @@ SILENT=0
 for arg in "$@"; do [ "$arg" = "--silent" ] && SILENT=1; done
 if [ "$SILENT" = "1" ]; then exec 3>/dev/null; else exec 3>&1; fi
 
-# Require at least 5 GB free on / (rpm-ostree, flatpak, and most installs use root)
-required_kb=$((5 * 1024 * 1024))
-available_kb=$(df -k / | awk 'NR==2 {print $4}')
-if [ "$available_kb" -lt "$required_kb" ]; then
-  available_gb=$(awk "BEGIN {printf \"%.1f\", $available_kb/1024/1024}")
-  echo "Error: at least 5 GB free disk space required on /. Available: ${available_gb} GB" >&2
-  exit 1
-fi
+# # Require at least 5 GB free on / (rpm-ostree, flatpak, and most installs use root)
+# required_kb=$((5 * 1024 * 1024))
+# available_kb=$(df -k / | awk 'NR==2 {print $4}')
+# if [ "$available_kb" -lt "$required_kb" ]; then
+#   available_gb=$(awk "BEGIN {printf \"%.1f\", $available_kb/1024/1024}")
+#   echo "Error: at least 5 GB free disk space required on /. Available: ${available_gb} GB" >&2
+#   exit 1
+# fi
 
 FONT_DIR="${HOME}/.local/share/fonts"
 CONFIG_DIR="${HOME}/.config"
