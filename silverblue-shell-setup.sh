@@ -18,7 +18,7 @@ if [ -f /etc/os-release ]; then
   # shellcheck source=/dev/null
   . /etc/os-release
 fi
-if [ "$ID" != "bluefin" ] || ! command -v rpm-ostree &>/dev/null; then
+if [ "$ID" != "fedora" ] || ! command -v rpm-ostree &>/dev/null; then
   echo "Error: this script requires Bluefin or another Fedora immutable (rpm-ostree) system. Detected OS: ${ID:-unknown}" >&2
   exit 1
 fi
@@ -41,14 +41,7 @@ SILENT=0
 for arg in "$@"; do [ "$arg" = "--silent" ] && SILENT=1; done
 if [ "$SILENT" = "1" ]; then exec 3>/dev/null; else exec 3>&1; fi
 
-# # Require at least 5 GB free on / (rpm-ostree, flatpak, and most installs use root)
-# required_kb=$((5 * 1024 * 1024))
-# available_kb=$(df -k / | awk 'NR==2 {print $4}')
-# if [ "$available_kb" -lt "$required_kb" ]; then
-#   available_gb=$(awk "BEGIN {printf \"%.1f\", $available_kb/1024/1024}")
-#   echo "Error: at least 5 GB free disk space required on /. Available: ${available_gb} GB" >&2
-#   exit 1
-# fi
+# Skip disk-space check on Silverblue/Bluefin: df / reports 0 (root is read-only OSTree); writable space is in /var
 
 FONT_DIR="${HOME}/.local/share/fonts"
 CONFIG_DIR="${HOME}/.config"
@@ -229,15 +222,24 @@ else
   ostree_install ranger
 fi
 
-# Tailscale
+# Tailscale (repo has gpgkey= URL; do not run rpm --import on immutable OS - it writes to read-only /usr/share/rpm)
 if command -v tailscale &>/dev/null; then
-  echo "==> 🦾 Tailscale is already installed, skipping."
+ echo "==> 🦾 Tailscale is already installed, skipping."
 else
-  echo "==> 🦾 Installing Tailscale..."
-  sudo curl -sSL -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/fedora/tailscale.repo
-  sudo rpm --import https://pkgs.tailscale.com/stable/fedora/repo.gpg >&3 2>&3
-  ostree_install tailscale
+ echo "==> 🦾 Installing Tailscale..."
+ if [ ! -f /etc/yum.repos.d/tailscale.repo ]; then
+   sudo curl -sSL -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/fedora/tailscale.repo
+ fi
+ ostree_install tailscale
+fi
+# Enable/start tailscaled only when the unit exists (after reboot when the layered pkg is active)
+if systemctl list-unit-files tailscaled.service &>/dev/null; then
   sudo systemctl enable --now tailscaled >&3 2>&3
+else
+  # Package queued for next boot; service not present until after reboot
+  if ! command -v tailscale &>/dev/null; then
+    echo "==> 🦾 Tailscale is queued for next boot. After reboot run: sudo systemctl enable --now tailscaled"
+  fi
 fi
 
 # Cursor IDE
@@ -309,34 +311,68 @@ if command -v code &>/dev/null || flatpak list --app 2>/dev/null | grep -q com.v
   set_editor_font "Code"
 fi
 
-# Google Chrome
-if command -v google-chrome-stable &>/dev/null || command -v google-chrome &>/dev/null; then
-  echo "==> 🌐 Chrome is already installed, skipping."
-else
-  echo "==> 🌐 Installing Google Chrome..."
-  case "$(uname -m)" in
-    x86_64)
-      sudo rpm --import https://dl.google.com/linux/linux_signing_key.pub >&3 2>&3
-      tmp_chrome=$(mktemp -u).rpm
-      curl -sSL -o "$tmp_chrome" https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
-      ostree_install "$tmp_chrome"
-      rm -f "$tmp_chrome"
-      ;;
-    *) echo "==> 🌐 Skipping Chrome (unsupported arch)." ;;
-  esac
+# Google Chrome: installed via Flatpak below (avoids rpm --import on immutable OS)
+# Ensure flatpak + Flathub are available (required for all Flatpak installs below)
+if ! command -v flatpak &>/dev/null; then
+  echo "==> 📦 Installing flatpak..."
+  ostree_install flatpak
+fi
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo >&3 2>&3
+
+# Flatpak apps (GNOME Extension Manager, Pika Backup, Slack, Obsidian, VS Code)
+flatpak_install_group() {
+  local missing=()
+  for app in "$@"; do
+    flatpak list --app 2>/dev/null | grep -q "$app" || missing+=("$app")
+  done
+  if [ "${#missing[@]}" -eq 0 ]; then
+    echo "==> 📦 All Flatpak apps already installed, skipping."
+  else
+    echo "==> 📦 Installing Flatpak apps: ${missing[*]}..."
+    flatpak install -y flathub "${missing[@]}" >&3 2>&3
+  fi
+}
+
+flatpak_install_group \
+  com.google.Chrome \
+  com.mattjakeman.ExtensionManager \
+  org.gnome.World.PikaBackup \
+  com.slack.Slack \
+  md.obsidian.Obsidian \
+  com.visualstudio.code
+
+# Pin Obsidian to dash (GNOME favorites) when in a graphical session
+if flatpak list --app 2>/dev/null | grep -q md.obsidian.Obsidian && [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ] && command -v gsettings &>/dev/null; then
+  favs=$(gsettings get org.gnome.shell favorite-apps 2>/dev/null)
+  if echo "$favs" | grep -q 'obsidian'; then
+    echo "==> 🔮 Obsidian already in dash favorites, skipping."
+  else
+    echo "==> 🔮 Pinning Obsidian to dash..."
+    if [ "$favs" = "@as []" ] || [ "$favs" = "[]" ]; then
+      gsettings set org.gnome.shell favorite-apps "['md.obsidian.Obsidian.desktop']"
+    else
+      gsettings set org.gnome.shell favorite-apps "$(echo "$favs" | sed "s/\]$/, 'md.obsidian.Obsidian.desktop']/")"
+    fi
+  fi
 fi
 
-# Pin Chrome to dash (GNOME favorites) when in a graphical session
-if (command -v google-chrome-stable &>/dev/null || command -v google-chrome &>/dev/null) && [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ] && command -v gsettings &>/dev/null; then
-  favs=$(gsettings get org.gnome.shell favorite-apps 2>/dev/null)
-  if echo "$favs" | grep -q 'google-chrome'; then
-    echo "==> 🌐 Chrome already in dash favorites, skipping."
-  else
-    echo "==> 🌐 Pinning Chrome to dash..."
-    if [ "$favs" = "@as []" ] || [ "$favs" = "[]" ]; then
-      gsettings set org.gnome.shell favorite-apps "['google-chrome.desktop']"
+# Pin Chrome to dash (GNOME favorites) when in a graphical session (Flatpak or system)
+chrome_in_favs() { echo "$1" | grep -qE 'google-chrome|com\.google\.Chrome'; }
+if [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ] && command -v gsettings &>/dev/null; then
+  if (command -v google-chrome-stable &>/dev/null || command -v google-chrome &>/dev/null) || (command -v flatpak &>/dev/null && flatpak list --app 2>/dev/null | grep -q com.google.Chrome); then
+    favs=$(gsettings get org.gnome.shell favorite-apps 2>/dev/null)
+    if chrome_in_favs "$favs"; then
+      echo "==> 🌐 Chrome already in dash favorites, skipping."
     else
-      gsettings set org.gnome.shell favorite-apps "$(echo "$favs" | sed "s/\]$/, 'google-chrome.desktop']/")"
+      echo "==> 🌐 Pinning Chrome to dash..."
+      chrome_desktop="com.google.Chrome.desktop"
+      command -v google-chrome-stable &>/dev/null && chrome_desktop="google-chrome.desktop"
+      command -v google-chrome &>/dev/null && chrome_desktop="google-chrome.desktop"
+      if [ "$favs" = "@as []" ] || [ "$favs" = "[]" ]; then
+        gsettings set org.gnome.shell favorite-apps "['$chrome_desktop']"
+      else
+        gsettings set org.gnome.shell favorite-apps "$(echo "$favs" | sed "s/\]$/, '$chrome_desktop']/")"
+      fi
     fi
   fi
 fi
@@ -345,6 +381,7 @@ fi
 CHROME_CMD=""
 command -v google-chrome-stable &>/dev/null && CHROME_CMD="google-chrome-stable"
 command -v google-chrome &>/dev/null && CHROME_CMD="google-chrome"
+command -v flatpak &>/dev/null && flatpak list --app 2>/dev/null | grep -q com.google.Chrome && CHROME_CMD="flatpak run com.google.Chrome"
 if [ -z "$CHROME_CMD" ]; then
   echo "==> 💬 Skipping WhatsApp webapp (Chrome not installed)."
 elif [ -f "${HOME}/.local/share/applications/whatsapp-web.desktop" ]; then
@@ -380,49 +417,6 @@ if [ -n "$CHROME_CMD" ] && [ -f "${HOME}/.local/share/applications/whatsapp-web.
       gsettings set org.gnome.shell favorite-apps "['whatsapp-web.desktop']"
     else
       gsettings set org.gnome.shell favorite-apps "$(echo "$favs" | sed "s/\]$/, 'whatsapp-web.desktop']/")"
-    fi
-  fi
-fi
-
-# Ensure flatpak + Flathub are available (required for all Flatpak installs below)
-if ! command -v flatpak &>/dev/null; then
-  echo "==> 📦 Installing flatpak..."
-  ostree_install flatpak
-fi
-flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo >&3 2>&3
-
-# Flatpak apps (GNOME Extension Manager, Pika Backup, Slack, Obsidian, VS Code)
-flatpak_install_group() {
-  local missing=()
-  for app in "$@"; do
-    flatpak list --app 2>/dev/null | grep -q "$app" || missing+=("$app")
-  done
-  if [ "${#missing[@]}" -eq 0 ]; then
-    echo "==> 📦 All Flatpak apps already installed, skipping."
-  else
-    echo "==> 📦 Installing Flatpak apps: ${missing[*]}..."
-    flatpak install -y flathub "${missing[@]}" >&3 2>&3
-  fi
-}
-
-flatpak_install_group \
-  com.mattjakeman.ExtensionManager \
-  org.gnome.World.PikaBackup \
-  com.slack.Slack \
-  md.obsidian.Obsidian \
-  com.visualstudio.code
-
-# Pin Obsidian to dash (GNOME favorites) when in a graphical session
-if flatpak list --app 2>/dev/null | grep -q md.obsidian.Obsidian && [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ] && command -v gsettings &>/dev/null; then
-  favs=$(gsettings get org.gnome.shell favorite-apps 2>/dev/null)
-  if echo "$favs" | grep -q 'obsidian'; then
-    echo "==> 🔮 Obsidian already in dash favorites, skipping."
-  else
-    echo "==> 🔮 Pinning Obsidian to dash..."
-    if [ "$favs" = "@as []" ] || [ "$favs" = "[]" ]; then
-      gsettings set org.gnome.shell favorite-apps "['md.obsidian.Obsidian.desktop']"
-    else
-      gsettings set org.gnome.shell favorite-apps "$(echo "$favs" | sed "s/\]$/, 'md.obsidian.Obsidian.desktop']/")"
     fi
   fi
 fi
