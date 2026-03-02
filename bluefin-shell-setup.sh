@@ -54,8 +54,24 @@ FONT_DIR="${HOME}/.local/share/fonts"
 CONFIG_DIR="${HOME}/.config"
 EXTENSIONS_GNOME_ORG="https://extensions.gnome.org"
 
-# rpm-ostree wrapper: layer packages (verbose by default, quiet with --silent)
-ostree_install() { if [ "$SILENT" = "1" ]; then sudo rpm-ostree install "$@" >&3 2>&3; else sudo rpm-ostree install "$@"; fi; }
+# rpm-ostree wrapper: layer packages, skipping those already layered or requested (avoids "Package is already requested")
+ostree_install() {
+  local to_install=() pkg layered_requested
+  layered_requested=$(rpm-ostree status --json 2>/dev/null | jq -r '.deployments[] | select(.booted) | ((.packages // []) + (.["requested-packages"] // [])) | .[]' 2>/dev/null) || true
+  for pkg in "$@"; do
+    if [[ "$pkg" == */* ]]; then
+      to_install+=("$pkg")
+    elif echo "$layered_requested" | grep -qxF "$pkg" 2>/dev/null; then
+      : # already layered or requested, skip
+    else
+      to_install+=("$pkg")
+    fi
+  done
+  if [ ${#to_install[@]} -eq 0 ]; then
+    return 0
+  fi
+  if [ "$SILENT" = "1" ]; then sudo rpm-ostree install "${to_install[@]}" >&3 2>&3; else sudo rpm-ostree install "${to_install[@]}"; fi
+}
 
 # Install a single layered package with skip-if-present messaging
 # Usage: install_dnf_pkg <emoji> <display-name> <command-to-check> [package-name]
@@ -147,7 +163,7 @@ else
 fi
 if [ "$SHELL" != "$(which zsh)" ]; then
   echo "==> 🐚 Changing default shell to zsh..."
-  chsh -s "$(which zsh)"
+  chshw -s "$(which zsh)"
 fi
 
 if [ -n "$(ls "$FONT_DIR"/RobotoMono*.ttf 2>/dev/null)" ]; then
