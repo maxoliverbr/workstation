@@ -163,7 +163,7 @@ else
 fi
 if [ "$SHELL" != "$(which zsh)" ]; then
   echo "==> 🐚 Changing default shell to zsh..."
-  chshw -s "$(which zsh)"
+  sudo usermod -s "$(which zsh)" "${USER}"
 fi
 
 if [ -n "$(ls "$FONT_DIR"/RobotoMono*.ttf 2>/dev/null)" ]; then
