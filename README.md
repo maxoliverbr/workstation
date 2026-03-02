@@ -19,12 +19,12 @@ Optional:
 
 - `--silent` — suppress install output (script messages still shown; only tool output is hidden)
 
-### Bluefin OS (Fedora immutable)
+### Silverblue OS (Fedora immutable)
 
-On Bluefin or another Fedora immutable (rpm-ostree) system, use the dedicated script:
+On Silverblue or another Fedora immutable (rpm-ostree) system, use the dedicated script:
 
 ```bash
-bash bluefin-shell-setup.sh
+bash silverblue-shell-setup.sh
 ```
 
 It layers packages with `rpm-ostree` instead of `dnf`. You must have **jq** and **unzip** available (e.g. layer them first and reboot: `rpm-ostree install jq unzip`, then reboot, then run the script). Layered packages take effect after a reboot; you can run `rpm-ostree apply-live` to apply without rebooting if your image supports it.
