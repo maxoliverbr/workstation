@@ -271,15 +271,7 @@ else
   export PATH="${HOME}/.local/bin:${PATH}"
 fi
 
-# VS Code
-if command -v code &>/dev/null; then
-  echo "==> 📟 VS Code is already installed, skipping."
-else
-  echo "==> 📟 Installing VS Code..."
-  sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc >&3 2>&3
-  sudo sh -c 'echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/vscode.repo'
-  ostree_install code
-fi
+# VS Code: install via Flatpak on Bluefin to avoid rpm-ostree transaction lock (see flatpak_install_group below)
 
 # Set Roboto Mono Nerd Font in Cursor and VS Code (editor + integrated terminal)
 EDITOR_FONT="RobotoMono Nerd Font"
@@ -300,7 +292,7 @@ if command -v cursor &>/dev/null; then
   echo "==> 📝 Setting Roboto Mono Nerd Font in Cursor..."
   set_editor_font "Cursor"
 fi
-if command -v code &>/dev/null; then
+if command -v code &>/dev/null || flatpak list --app 2>/dev/null | grep -q com.visualstudio.code; then
   echo "==> 📟 Setting Roboto Mono Nerd Font in VS Code..."
   set_editor_font "Code"
 fi
@@ -387,7 +379,7 @@ if ! command -v flatpak &>/dev/null; then
 fi
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo >&3 2>&3
 
-# Flatpak apps (GNOME Extension Manager, Pika Backup, Slack, Obsidian)
+# Flatpak apps (GNOME Extension Manager, Pika Backup, Slack, Obsidian, VS Code)
 flatpak_install_group() {
   local missing=()
   for app in "$@"; do
@@ -405,7 +397,8 @@ flatpak_install_group \
   com.mattjakeman.ExtensionManager \
   org.gnome.World.PikaBackup \
   com.slack.Slack \
-  md.obsidian.Obsidian
+  md.obsidian.Obsidian \
+  com.visualstudio.code
 
 # Pin Obsidian to dash (GNOME favorites) when in a graphical session
 if flatpak list --app 2>/dev/null | grep -q md.obsidian.Obsidian && [ -n "${WAYLAND_DISPLAY}${DISPLAY}" ] && command -v gsettings &>/dev/null; then
