@@ -1,3 +1,7 @@
+**This is not a project.** It is my personal script to set up my workstation. No warranty is given—use at your own risk; you may lose data. Do not send me requests: fork the repo and make your own changes. License: MIT.
+
+---
+
 # Workstation setup
 
 One-shot install script for a Fedora/RHEL workstation: shell, fonts, IDEs, browsers, Flatpak apps, terminal and dev tools, and GNOME extensions.
